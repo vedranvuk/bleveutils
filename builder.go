@@ -19,6 +19,8 @@ func DocType(doc any) string {
 	return reflect.Indirect(reflect.ValueOf(doc)).Type().Name()
 }
 
+type GetDocumentType func(interface{}) string
+
 // GetIndexMapping is a callback for index mapping allocation.
 type GetIndexMapping func(im *mapping.IndexMappingImpl) *mapping.IndexMappingImpl
 
@@ -36,9 +38,9 @@ type GetFieldMapping func(typ reflect.Type, fm *mapping.FieldMapping) *mapping.F
 // added. It returns an open bleve.Index or an error.
 //
 // For more details see Builder.
-func Build(indexPath string, imcb GetIndexMapping, dmcb GetDocumentMapping, fmcb GetFieldMapping, documents ...any) (idx bleve.Index, err error) {
+func Build(indexPath string, gtcb GetDocumentType, imcb GetIndexMapping, dmcb GetDocumentMapping, fmcb GetFieldMapping, documents ...any) (idx bleve.Index, err error) {
 	var (
-		builder = Builder{imcb, dmcb, fmcb}
+		builder = Builder{gtcb, imcb, dmcb, fmcb}
 		mapping mapping.IndexMapping
 	)
 	if mapping, err = builder.BuildIndexMapping(documents...); err != nil {
@@ -52,6 +54,7 @@ func Build(indexPath string, imcb GetIndexMapping, dmcb GetDocumentMapping, fmcb
 // See typeToMapping for rules on how field mapping types are determined from
 // Go types.
 type Builder struct {
+	gtcb GetDocumentType
 	imcb GetIndexMapping
 	dmcb GetDocumentMapping
 	fmcb GetFieldMapping
@@ -59,8 +62,8 @@ type Builder struct {
 
 // NewBuilder returns a new Builder with a callback for document and field
 // mapping allocation. Both are optional and can be nil.
-func NewBuilder(imcb GetIndexMapping, dmcb GetDocumentMapping, fmcb GetFieldMapping) *Builder {
-	return &Builder{imcb, dmcb, fmcb}
+func NewBuilder(gtcb GetDocumentType, imcb GetIndexMapping, dmcb GetDocumentMapping, fmcb GetFieldMapping) *Builder {
+	return &Builder{gtcb, imcb, dmcb, fmcb}
 }
 
 // BuildIndexMapping builds a bleve index mapping from documents.
@@ -78,6 +81,7 @@ func (self *Builder) BuildIndexMapping(documents ...any) (m mapping.IndexMapping
 
 	// Build index mapping.
 	var indexMapping = bleve.NewIndexMapping()
+	indexMapping.SetOnDetermineType(self.gtcb)
 	if self.imcb != nil {
 		indexMapping = self.imcb(indexMapping)
 	}
@@ -104,7 +108,7 @@ func (self *Builder) buildDocumentMapping(doc any) (docMapping *mapping.Document
 	if self.dmcb != nil {
 		docMapping = self.dmcb(v.Type(), docMapping)
 	}
-	self.buildFieldMappings("", doc, v, docMapping)
+	self.buildFieldMappings(doc, v, docMapping)
 
 	return docMapping, nil
 }
@@ -112,7 +116,7 @@ func (self *Builder) buildDocumentMapping(doc any) (docMapping *mapping.Document
 // buildFieldMappings processes doc struct fields and adds field mappings to m under
 // optionaly prefix prefixed name, dot separated, and the field name which is
 // parsed from json tag first, field name second. Unexported fields are skipped.
-func (self *Builder) buildFieldMappings(prefix string, doc any, v reflect.Value, docMapping *mapping.DocumentMapping) {
+func (self *Builder) buildFieldMappings(doc any, v reflect.Value, docMapping *mapping.DocumentMapping) {
 	for i := 0; i < v.NumField(); i++ {
 		// Get name from field name.
 		var name = v.Type().Field(i).Name
@@ -131,18 +135,15 @@ func (self *Builder) buildFieldMappings(prefix string, doc any, v reflect.Value,
 			fieldMapping = self.typeToMapping(typ)
 		)
 		if typ.Kind() == reflect.Struct && fieldMapping == nil {
-			var dm = mapping.NewDocumentStaticMapping()
+			var dm = bleve.NewDocumentStaticMapping()
 			if self.dmcb != nil {
 				dm = self.dmcb(typ, dm)
 			}
-			self.buildFieldMappings(name, doc, v.Field(i), dm)
+			self.buildFieldMappings(doc, v.Field(i), dm)
 			docMapping.AddSubDocumentMapping(name, dm)
 		}
 		if fieldMapping != nil {
-			// fm.Store = false
-			if prefix != "" {
-				name = prefix + "." + name
-			}
+			fieldMapping.Store = false
 			docMapping.AddFieldMappingsAt(name, fieldMapping)
 		}
 	}

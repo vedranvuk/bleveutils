@@ -24,7 +24,7 @@ type Child struct {
 
 func TestBuild(t *testing.T) {
 	os.RemoveAll("index.bleve")
-	var idx, err = Build("index.bleve", nil, nil, nil, Child{})
+	var idx, err = Build("index.bleve", nil, nil, nil, nil, Child{})
 	if err != nil {
 		t.Fatal(err)
 	}

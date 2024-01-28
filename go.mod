@@ -4,6 +4,8 @@ go 1.21.3
 
 require github.com/blevesearch/bleve/v2 v2.3.10
 
+replace github.com/blevesearch/bleve/v2 => ../bleve
+
 require (
 	github.com/RoaringBitmap/roaring v1.2.3 // indirect
 	github.com/bits-and-blooms/bitset v1.2.0 // indirect
