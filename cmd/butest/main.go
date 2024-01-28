@@ -29,7 +29,7 @@ func main() {
 	switch err {
 	case bleve.ErrorIndexPathDoesNotExist:
 		fmt.Println("Building index...")
-		idx, err = bleveutils.Build("index.bleve", dmcb, fmcb, doc())
+		idx, err = bleveutils.Build("index.bleve", imcb, dmcb, fmcb, doc())
 		check(idx.Index("data", doc()))
 		check(err)
 	case nil:
@@ -50,6 +50,10 @@ func main() {
 	)
 	check(err)
 	fmt.Println(res)
+}
+
+func imcb(m *mapping.IndexMappingImpl) *mapping.IndexMappingImpl {
+	return m
 }
 
 func dmcb(typ reflect.Type, m *mapping.DocumentMapping) *mapping.DocumentMapping {
@@ -81,15 +85,15 @@ func doc() any {
 }
 
 type Person struct {
-	FirstName string
-	LastName  string
-	Age       int
+	FirstName string `json:"firstName,omitempty"`
+	LastName  string `json:"lastName,omitempty"`
+	Age       int    `json:"age,omitempty"`
 }
 
 type User struct {
-	Person
-	Registered  bool
-	DateCreated time.Time
-	LuckyNums   [3]int
-	Nicknames   []string
+	Person      `json:"person,omitempty"`
+	Registered  bool      `json:"registered,omitempty"`
+	DateCreated time.Time `json:"dateCreated,omitempty"`
+	LuckyNums   [3]int    `json:"luckyNums,omitempty"`
+	Nicknames   []string  `json:"nicknames,omitempty"`
 }
